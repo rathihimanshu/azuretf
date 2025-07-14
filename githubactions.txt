@@ -1,0 +1,71 @@
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "tf-lock-demo"
+    storage_account_name = "tfstatelock5997"
+    container_name       = "tfstate"
+    key                  = "lockednew/demo.tfstate"
+  }
+}
+provider "azurerm" {
+  features {
+
+  }
+
+}
+resource "azurerm_resource_group" "rgst1" {
+  name     = "githubaction1"
+  location = "East US"
+
+}
+
+
+
+---
+
+.github/workflows/terraform.yml
+
+name: Terraform Azure CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    name: Terraform Deployment
+    runs-on: ubuntu-latest
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply (only on main branch)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan
